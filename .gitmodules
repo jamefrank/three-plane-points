@@ -1,0 +1,3 @@
+[submodule "thirdparty/json"]
+	path = thirdparty/json
+	url = https://gitee.com/learnlov/mirrors_nlohmann_json.git
