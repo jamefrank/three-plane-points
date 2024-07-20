@@ -5,6 +5,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+if(NOT MSVC) # 这一行是为了确保只对非MSVC编译器应用这些标志
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
@@ -16,7 +21,10 @@ find_package(Boost REQUIRED COMPONENTS filesystem program_options)
 
 add_subdirectory(thirdparty/json)
 
-add_executable(three_plane_points src/three_plane_points.cpp)
+add_executable(three_plane_points 
+  src/three_plane_points.cpp
+  src/calibtools.cpp
+)
 
 target_include_directories(three_plane_points PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -32,7 +40,7 @@ target_link_libraries(three_plane_points
   nlohmann_json
 )
 
-target_compile_features(three_plane_points PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+target_compile_features(three_plane_points PUBLIC c_std_99 cxx_std_11 cxx_std_17)  # Require C99 and C++17
 
 install(TARGETS three_plane_points
   DESTINATION lib/${PROJECT_NAME})
