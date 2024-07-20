@@ -1,4 +1,12 @@
 #include "calibtools.h"
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/cloud_viewer.h>
+
+#include <filesystem>
 
 bool seg_plane(
   pcl::PointCloud<pcl::PointXYZ>::Ptr frame,
@@ -148,4 +156,88 @@ bool extract_ground_plane(
 
   //
   return seg_plane(frame, Eigen::Vector3f(0, 0, 1), 2.0, true, distance_threshold, coef, plane);
+}
+
+void extract_all_planes(
+  const pcl::PointCloud<pcl::PointXYZ>::Ptr frame,
+  std::vector<pcl::PointIndices>& seg_indices,
+  std::vector<Eigen::Vector4d>& coefs,
+  const std::string& save_dir,
+  bool b_visualize) {
+  //
+  std::string final_save_dir = save_dir + "/planes/";
+  std::filesystem::create_directories(final_save_dir);
+
+  // compute_normals
+  pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
+  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> norm_est;
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+  norm_est.setSearchMethod(tree);
+  norm_est.setKSearch(40);
+  // norm_est.setRadiusSearch(5);
+  norm_est.setInputCloud(frame);
+  norm_est.compute(*normals);
+
+  // plane segmentation
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  pcl::PointIndices::Ptr indices_plane(new pcl::PointIndices);
+  pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
+  seg.setNormalDistanceWeight(0.2);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setMaxIterations(3000);
+  seg.setDistanceThreshold(0.2);
+  seg.setInputCloud(frame);
+  seg.setInputNormals(normals);
+  seg.segment(*indices_plane, *coefficients);
+
+  pcl::ExtractIndices<pcl::PointXYZ> extract(true);
+  extract.setInputCloud(frame);
+  pcl::PointIndices::Ptr indices_notplane(new pcl::PointIndices);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>);
+  int plane_size = indices_plane->indices.size();
+  pcl::PointIndices::Ptr indices_plane_all(new pcl::PointIndices);
+
+  int cnt = 0;
+  while (plane_size >= 200) {
+    std::cout << "Plane points: " << plane_size << std::endl;
+
+    Eigen::Vector4d coef;
+    coef << coefficients->values[0], coefficients->values[1], coefficients->values[2], coefficients->values[3];
+    coefs.emplace_back(coef);
+    extract.setIndices(indices_plane);
+    extract.filter(*cloud_out);
+    pcl::io::savePCDFileBinary(final_save_dir + std::to_string(cnt++) + ".pcd", *cloud_out);
+
+    if (b_visualize) {
+      pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Plane" + std::to_string(cnt - 1)));
+
+      // 设置点云颜色为绿色
+      pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> color_handler(frame, 0, 255, 0);  // 绿色 RGB(0, 255, 0)
+      std::string frame_name = "frame";
+      viewer->addPointCloud(frame, color_handler, frame_name);
+      viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, frame_name);  // 设置点云的尺寸为10
+
+      pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> color_handler1(cloud_out, 255, 0, 0);
+      std::string plane_name = "plane";  // 绿色 RGB(0, 255, 0)
+      viewer->addPointCloud(cloud_out, color_handler1, plane_name);
+      viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, plane_name);  // 设置点云的尺寸为10
+
+      // 可视化点云
+      while (!viewer->wasStopped()) {
+        viewer->spin();
+      }
+    }
+
+    seg_indices.push_back(*indices_plane);
+    indices_plane_all->indices.insert(indices_plane_all->indices.end(), indices_plane->indices.begin(), indices_plane->indices.end());
+    extract.setIndices(indices_plane_all);
+    extract.filter(*cloud_out);
+    extract.getRemovedIndices(*indices_notplane);
+    seg.setIndices(indices_notplane);
+    seg.segment(*indices_plane, *coefficients);
+    plane_size = indices_plane->indices.size();
+  }
+  std::cout << "Plane points < 200, stop extracting plane." << std::endl;
 }

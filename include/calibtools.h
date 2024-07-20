@@ -23,3 +23,10 @@ bool extract_ground_plane(
   std::string field_name = "z",
   double limit_min = -100.0,
   double limit_max = 0.0);
+
+void extract_all_planes(
+  const pcl::PointCloud<pcl::PointXYZ>::Ptr frame,
+  std::vector<pcl::PointIndices>& seg_indices,
+  std::vector<Eigen::Vector4d>& coefs,
+  const std::string& save_dir,
+  bool b_visualize=false);

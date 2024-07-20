@@ -54,53 +54,9 @@ int main(int argc, char** argv) {
     pcl::io::loadPCDFile(pcd_path, *frame);
 
     //
-    Eigen::Vector4d ground_coef;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr ground_plane(new pcl::PointCloud<pcl::PointXYZ>());
-    if (!extract_ground_plane(frame, 1, ground_coef, ground_plane)) {
-      std::cout << "ground plane extraction failed" << std::endl;
-      continue;
-    }
-    pcl::io::savePCDFileBinary(pcd_dir + "/ground_plane.pcd", *ground_plane);
-
-    //
-    std::vector<Eigen::Vector4d> x_coefs;
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> x_planes;
-    while (true) {
-      Eigen::Vector4d coef;
-      pcl::PointCloud<pcl::PointXYZ>::Ptr plane(new pcl::PointCloud<pcl::PointXYZ>());
-      if (!seg_plane(frame, Eigen::Vector3f(1, 0, 0), 10.0, true, 5, coef, plane)) {
-        break;
-      }
-      x_coefs.emplace_back(coef);
-      x_planes.emplace_back(plane);
-    }
-
-    if (x_coefs.empty()) {
-      std::cout << "x plane extraction failed" << std::endl;
-      std::cout << "" << std::endl;
-      continue;
-    }
-    //
-    std::vector<Eigen::Vector4d> y_coefs;
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> y_planes;
-    while (true) {
-      Eigen::Vector4d coef;
-      pcl::PointCloud<pcl::PointXYZ>::Ptr plane(new pcl::PointCloud<pcl::PointXYZ>());
-      if (!seg_plane(frame, Eigen::Vector3f(0, 1, 0), 10.0, true, 5, coef, plane)) {
-        break;
-      }
-      y_coefs.emplace_back(coef);
-      y_planes.emplace_back(plane);
-    }
-    if (y_coefs.empty()) {
-      std::cout << "y plane extraction failed" << std::endl;
-      std::cout << "" << std::endl;
-      continue;
-    }
-
-    std::cout << "x_planes:" << x_planes.size() << std::endl;
-    std::cout << "y_planes:" << y_planes.size() << std::endl;
-    std::cout << "" << std::endl;
+    std::vector<Eigen::Vector4d> coefs;
+    std::vector<pcl::PointIndices> seg_indices;
+    extract_all_planes(frame, seg_indices, coefs, pcd_dir, vm.count("visualize"));
   }
 
   return 0;
